@@ -1,12 +1,14 @@
 import { db } from '../firebase-config.js';
 import { collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// Hilfsfunktion: Öffnet das Übungs-Modal mit den Details
 function openExerciseModal(exercise) {
     const modal = document.getElementById('exercise-modal');
     if (!modal) return;
-
+    
+    document.getElementById('modal-exercise-title').textContent = exercise.title || 'Übung';
     document.getElementById('modal-exercise-image').src = exercise.imageUrl;
-    document.getElementById('modal-exercise-desc').textContent = exercise.description;
+    document.getElementById('modal-exercise-desc').textContent = exercise.description; // Hier die volle Beschreibung
     document.getElementById('modal-exercise-points').textContent = `+${exercise.points} Punkte`;
 
     modal.style.display = 'flex';
@@ -22,12 +24,12 @@ export function renderExercises(container) {
         </div>
     `;
     
-    // Richte den Close-Button nur einmal ein
     const modal = document.getElementById('exercise-modal');
     const closeBtn = document.getElementById('exercise-modal-close-btn');
     if (modal && closeBtn) {
         closeBtn.onclick = () => { modal.style.display = 'none'; };
         modal.onclick = (event) => {
+            // Nur schließen, wenn außerhalb des Modal-Inhalts geklickt wird
             if (event.target === modal) {
                 modal.style.display = 'none';
             }
@@ -51,11 +53,11 @@ export function renderExercises(container) {
         const exercisesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         exercisesGrid.innerHTML = exercisesData.map(exercise => {
             return `
-                <div class="bg-slate-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all" data-exercise-id="${exercise.id}">
+                <div class="bg-slate-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all flex flex-col" data-exercise-id="${exercise.id}">
                     <img src="${exercise.imageUrl}" alt="Übungsbild" class="w-full h-48 object-cover">
-                    <div class="p-6">
-                        <p class="text-gray-300 mb-4 line-clamp-3">${exercise.description}</p>
-                        <div class="text-right text-lg font-bold text-teal-400">+${exercise.points} Punkte</div>
+                    <div class="p-6 flex flex-col items-center text-center">
+                        <h3 class="text-xl font-bold text-white mb-2">${exercise.title || 'Übung'}</h3>
+                        <div class="text-right text-lg font-bold text-teal-400 mt-2">+${exercise.points} Punkte</div>
                     </div>
                 </div>
             `;
