@@ -1,12 +1,61 @@
 import { collection, query, orderBy, limit, where, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from '../firebase-config.js';
 
+// Funktion zum Öffnen des Verlaufs-Modals
+async function openHistoryModal(currentUser) {
+    const modal = document.getElementById('history-modal');
+    const historyList = document.getElementById('modal-history-list');
+    const closeBtn = document.getElementById('history-modal-close-btn');
+    if (!modal || !historyList || !closeBtn) return;
+
+    // Ladezustand anzeigen
+    historyList.innerHTML = `<p class="text-gray-400">Lade vollständigen Verlauf...</p>`;
+    modal.style.display = 'flex';
+    closeBtn.onclick = () => { modal.style.display = 'none'; };
+
+    // Daten einmalig abrufen (ohne Limit)
+    const fullHistoryQuery = query(
+        collection(db, "point_logs"),
+        where("userId", "==", currentUser.uid),
+        orderBy("timestamp", "desc")
+    );
+
+    try {
+        const snapshot = await getDocs(fullHistoryQuery);
+        if (snapshot.empty) {
+            historyList.innerHTML = `<p class="text-gray-400">Noch keine Einträge vorhanden.</p>`;
+            return;
+        }
+
+        historyList.innerHTML = snapshot.docs.map(doc => {
+            const log = doc.data();
+            const date = log.timestamp?.toDate().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            const isNegative = log.points < 0;
+            const pointsClass = isNegative ? 'text-red-500' : 'text-teal-400';
+            const pointsSign = isNegative ? '' : '+';
+
+            return `
+                <div class="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center text-sm">
+                    <div>
+                        <p class="font-semibold text-white">${log.reason}</p>
+                        <p class="text-gray-400">${date}</p>
+                    </div>
+                    <div class="font-bold ${pointsClass} text-base whitespace-nowrap">${pointsSign}${log.points} Pkt.</div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error("Fehler beim Laden der vollen Historie:", error);
+        historyList.innerHTML = `<p class="text-red-400">Fehler beim Laden des Verlaufs.</p>`;
+    }
+}
+
 function startCountdown(elementId, endDate) {
     const countdownElement = document.getElementById(elementId);
     if (!countdownElement) return;
     const intervalId = `interval_${elementId}`;
 
-    // Stoppe einen eventuell bereits laufenden Timer für dieses Element
     if (window[intervalId]) {
         clearInterval(window[intervalId]);
     }
@@ -44,14 +93,19 @@ function getEndOfDay() {
 export function renderDashboard(container, currentUser) {
     container.innerHTML = `
         <div class="space-y-8">
-            <div class="grid md:grid-cols-3 gap-6" id="dashboard-stats">
+            <div class="grid md:grid-cols-3 gap-6" id="dashboard-stats"></div>
+            <div id="challenges-container" class="space-y-8"></div>
+            
+            <div id="history-card" class="bg-slate-800 p-6 rounded-lg shadow-lg cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all">
+                <h2 class="text-xl font-bold mb-4 text-white">Letzte Aktivitäten</h2>
+                <div id="history-list" class="space-y-4">
+                    <p class="text-gray-400">Lade Verlauf...</p>
                 </div>
-            <div id="challenges-container" class="space-y-8">
-                </div>
+                <p id="history-hint" class="text-center text-xs text-gray-500 mt-4" style="display: none;">Klicken, um die ganze Historie zu sehen</p>
+            </div>
         </div>
     `;
 
-    // Listener für Benutzerdaten (Punkte, Rang, etc.)
     const usersListener = onSnapshot(query(collection(db, "users"), orderBy("points", "desc")), (snapshot) => {
         const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const me = users.find(u => u.id === currentUser.uid);
@@ -169,8 +223,53 @@ export function renderDashboard(container, currentUser) {
     const challengesListener = onSnapshot(collection(db, "challenges"), renderAllChallenges);
     const weeklyChallengesListener = onSnapshot(collection(db, "weekly_challenges"), renderAllChallenges);
     const monthlyChallengesListener = onSnapshot(collection(db, "monthly_challenges"), renderAllChallenges);
+    
+    // GEÄNDERT: limit(3) für die Vorschau
+    const historyQuery = query(
+        collection(db, "point_logs"), 
+        where("userId", "==", currentUser.uid), 
+        orderBy("timestamp", "desc"),
+        limit(3)
+    );
+    const historyListener = onSnapshot(historyQuery, (snapshot) => {
+        const historyList = document.getElementById('history-list');
+        const historyHint = document.getElementById('history-hint');
+        if (!historyList || !historyHint) return;
+
+        if (snapshot.empty) {
+            historyList.innerHTML = `<p class="text-gray-400">Noch keine Einträge vorhanden.</p>`;
+            historyHint.style.display = 'none';
+            return;
+        }
+
+        historyHint.style.display = 'block';
+        historyList.innerHTML = snapshot.docs.map(doc => {
+            const log = doc.data();
+            const date = log.timestamp?.toDate().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+            
+            const isNegative = log.points < 0;
+            const pointsClass = isNegative ? 'text-red-500' : 'text-teal-400';
+            const pointsSign = isNegative ? '' : '+';
+
+            return `
+                <div class="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center text-sm">
+                    <div>
+                        <p class="font-semibold text-white">${log.reason}</p>
+                        <p class="text-gray-400">${date}</p>
+                    </div>
+                    <div class="font-bold ${pointsClass} text-base whitespace-nowrap">${pointsSign}${log.points} Pkt.</div>
+                </div>
+            `;
+        }).join('');
+    });
+
+    setTimeout(() => {
+        const historyCard = document.getElementById('history-card');
+        if (historyCard) {
+            historyCard.addEventListener('click', () => openHistoryModal(currentUser));
+        }
+    }, 0);
 
     renderAllChallenges();
-
-    return [usersListener, challengesListener, weeklyChallengesListener, monthlyChallengesListener];
+    return [usersListener, challengesListener, weeklyChallengesListener, monthlyChallengesListener, historyListener];
 }

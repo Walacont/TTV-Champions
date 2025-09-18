@@ -21,6 +21,7 @@ import {
 
 async function updateAwardDropdown(selectElement) {
     if (!selectElement) return;
+
     try {
         const now = new Date();
         const startOfDay = new Date();
@@ -44,6 +45,9 @@ async function updateAwardDropdown(selectElement) {
         
         const awardOptionsHtml = `
             <option value="">Übung oder Challenge auswählen...</option>
+            <optgroup label="Sonstiges">
+                <option value="manual_award">Manuelle Punktevergabe</option>
+            </optgroup>
             <optgroup label="Übungen">
                 ${itemsForAwarding.filter(item => item.type === 'exercises').map(item =>
                     `<option value="exercises_${item.id}" data-points="${item.points}" data-name="${item.title}">${item.title}</option>`
@@ -120,6 +124,7 @@ export async function renderAdmin(container, callbacks) {
                 <h2 class="text-xl font-bold mb-4">Spieler verwalten</h2>
                 <button id="manage-players-btn" class="w-full bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition">Spielerliste öffnen</button>
             </div>
+
             <div class="bg-slate-800 p-6 rounded-lg shadow-lg">
                 <h2 class="text-xl font-bold mb-4">Punkte für Leistung vergeben</h2>
                 <form id="points-form" class="space-y-4">
@@ -130,6 +135,9 @@ export async function renderAdmin(container, callbacks) {
                     <select id="award-item" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600" required>
                         <option value="">Lade Übungen/Challenges...</option>
                     </select>
+                    <div id="manual-reason-container" style="display: none;">
+                         <input type="text" id="manual-reason" placeholder="Begründung (z.B. Turniersieg)" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600">
+                    </div>
                     <input type="number" id="points-amount" placeholder="Punkte" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600" required>
                     <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition">Punkte eintragen & zuweisen</button>
                 </form>
@@ -154,9 +162,22 @@ export async function renderAdmin(container, callbacks) {
         else callbacks.showNotification('Bitte wähle zuerst ein Datum aus.', 'error');
     });
     document.getElementById('manage-players-btn').addEventListener('click', () => openPlayerManagementModal(allUsers, callbacks));
+    
+    // NEU: Logik zum Ein- und Ausblenden der Felder
     awardItemSelect.addEventListener('change', (e) => {
         const selectedOption = e.target.options[e.target.selectedIndex];
-        document.getElementById('points-amount').value = selectedOption.dataset.points || '';
+        const manualReasonContainer = document.getElementById('manual-reason-container');
+        const pointsAmountInput = document.getElementById('points-amount');
+
+        if (e.target.value === 'manual_award') {
+            manualReasonContainer.style.display = 'block';
+            pointsAmountInput.value = ''; // Punktefeld leeren für manuelle Eingabe
+            pointsAmountInput.readOnly = false;
+        } else {
+            manualReasonContainer.style.display = 'none';
+            pointsAmountInput.value = selectedOption.dataset.points || '';
+            pointsAmountInput.readOnly = true; // Punktefeld sperren, da es vordefiniert ist
+        }
     });
 
     return [exercisesListener, challengesListener, weeklyChallengesListener, monthlyChallengesListener];
@@ -168,58 +189,89 @@ async function handlePointsForm(e, currentUser, callbacks) {
     const selectedItemValue = document.getElementById('award-item').value;
     const amount = parseInt(document.getElementById('points-amount').value);
 
-    if (!playerId || !selectedItemValue || isNaN(amount)) {
-        callbacks.showNotification("Bitte Spieler, Item und Punkte angeben.", "error");
-        return;
-    }
-
-    const [collectionName, docId] = selectedItemValue.split('_');
-    if(!collectionName || !docId) {
-        callbacks.showNotification("Ungültiges Item ausgewählt.", "error");
-        return;
-    }
-
-    const selectedOption = document.querySelector(`#award-item option[value="${selectedItemValue}"]`);
-    const reason = selectedOption.dataset.name;
-    
-    const playerDocRef = doc(db, "users", playerId);
-    const itemDocRef = doc(db, collectionName, docId);
-
-    try {
-        const playerDoc = await getDoc(playerDocRef);
-        if (!playerDoc.exists()) throw new Error("Spieler nicht gefunden");
-
-        const currentPoints = playerDoc.data().points || 0;
-        await updateDoc(playerDocRef, { points: currentPoints + amount });
-
-        await addDoc(collection(db, "point_logs"), {
-            userId: playerId, points: amount, reason: reason,
-            adminId: currentUser.uid, timestamp: serverTimestamp()
-        });
-
-        await updateDoc(itemDocRef, {
-            completedBy: arrayUnion(playerId)
-        });
-
-        callbacks.showNotification(`Leistung für ${playerDoc.data().name} erfasst.`, 'success');
-        document.getElementById('points-form').reset();
+    // NEU: Logik in zwei Fälle aufteilen: Manuell vs. Challenge/Übung
+    if (selectedItemValue === 'manual_award') {
+        const reason = document.getElementById('manual-reason').value;
+        if (!playerId || !reason || isNaN(amount) || amount <= 0) {
+            callbacks.showNotification("Bitte Spieler, Begründung und gültige Punkte angeben.", "error");
+            return;
+        }
         
-    } catch (error) {
-        console.error("Fehler bei der Punktevergabe: ", error);
-        callbacks.showNotification("Ein Fehler ist aufgetreten.", "error");
+        const playerDocRef = doc(db, "users", playerId);
+        try {
+            const playerDoc = await getDoc(playerDocRef);
+            if (!playerDoc.exists()) throw new Error("Spieler nicht gefunden");
+
+            const currentPoints = playerDoc.data().points || 0;
+            await updateDoc(playerDocRef, { points: currentPoints + amount });
+
+            await addDoc(collection(db, "point_logs"), {
+                userId: playerId, points: amount, reason: reason,
+                adminId: currentUser.uid, timestamp: serverTimestamp()
+            });
+
+            callbacks.showNotification(`Manuell ${amount} Punkte für ${playerDoc.data().name} erfasst.`, 'success');
+            document.getElementById('points-form').reset();
+            document.getElementById('manual-reason-container').style.display = 'none'; // Feld wieder ausblenden
+
+        } catch (error) {
+            console.error("Fehler bei manueller Punktevergabe: ", error);
+            callbacks.showNotification("Ein Fehler ist aufgetreten.", "error");
+        }
+
+    } else {
+        // Dies ist die bisherige Logik für Challenges und Übungen
+        if (!playerId || !selectedItemValue || isNaN(amount)) {
+            callbacks.showNotification("Bitte Spieler, Item und Punkte angeben.", "error");
+            return;
+        }
+
+        const [collectionName, docId] = selectedItemValue.split('_');
+        if(!collectionName || !docId) {
+            callbacks.showNotification("Ungültiges Item ausgewählt.", "error");
+            return;
+        }
+
+        const selectedOption = document.querySelector(`#award-item option[value="${selectedItemValue}"]`);
+        const reason = selectedOption.dataset.name;
+        
+        const playerDocRef = doc(db, "users", playerId);
+        const itemDocRef = doc(db, collectionName, docId);
+
+        try {
+            const playerDoc = await getDoc(playerDocRef);
+            if (!playerDoc.exists()) throw new Error("Spieler nicht gefunden");
+
+            const currentPoints = playerDoc.data().points || 0;
+            await updateDoc(playerDocRef, { points: currentPoints + amount });
+
+            await addDoc(collection(db, "point_logs"), {
+                userId: playerId, points: amount, reason: reason,
+                adminId: currentUser.uid, timestamp: serverTimestamp()
+            });
+
+            await updateDoc(itemDocRef, {
+                completedBy: arrayUnion(playerId)
+            });
+
+            callbacks.showNotification(`Leistung für ${playerDoc.data().name} erfasst.`, 'success');
+            document.getElementById('points-form').reset();
+        } catch (error) {
+            console.error("Fehler bei der Punktevergabe: ", error);
+            callbacks.showNotification("Ein Fehler ist aufgetreten.", "error");
+        }
     }
 }
 
+// ... Der Rest der Datei (handleExerciseForm, handleChallengeForm, etc.) bleibt unverändert ...
 async function handleExerciseForm(e, callbacks) {
     e.preventDefault();
-    // NEU: Titel aus dem Formular auslesen
     const title = document.getElementById('exercise-title').value;
     const description = document.getElementById('exercise-desc').value;
     const points = parseInt(document.getElementById('exercise-points').value);
     const fileInput = document.getElementById('exercise-image');
     const file = fileInput.files[0];
 
-    // NEU: Prüfung, ob der Titel vorhanden ist
     if (!title || !description || isNaN(points) || !file) {
         callbacks.showNotification("Bitte alle Felder ausfüllen und ein Bild auswählen.", "error");
         return;
@@ -252,7 +304,6 @@ async function handleExerciseForm(e, callbacks) {
             }, 
             async () => {
                 const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                // NEU: Titel zum Datenbank-Objekt hinzufügen
                 await addDoc(collection(db, "exercises"), {
                     title: title,
                     description: description,
@@ -276,7 +327,6 @@ async function handleExerciseForm(e, callbacks) {
     }
 }
 
-// Die restlichen Funktionen (handleChallengeForm, etc.) bleiben unverändert
 async function handleChallengeForm(e, callbacks) {
     e.preventDefault();
     const type = document.getElementById('challenge-type').value;
@@ -373,30 +423,57 @@ async function openAttendanceModal(dateStr, allUsers, callbacks) {
     document.getElementById('modal-save-btn').onclick = () => handleSaveAttendance(dateStr, attendees, allUsers, callbacks);
 }
 
+// admin.js
+
 async function handleSaveAttendance(dateStr, oldAttendees, allUsers, callbacks) {
     const modal = document.getElementById('attendance-modal');
     const newAttendees = Array.from(document.querySelectorAll('#modal-player-list input:checked')).map(cb => cb.value);
     const TRAINING_POINTS = 10;
     const batch = writeBatch(db);
-    batch.set(doc(db, "training_sessions", dateStr), { attendees: newAttendees, date: dateStr });
+    
+    const sessionRef = doc(db, "training_sessions", dateStr);
+    batch.set(sessionRef, { attendees: newAttendees, date: dateStr });
+    
+    const reason = `Training am ${new Date(dateStr + 'T00:00:00').toLocaleDateString('de-DE')}`;
+
     allUsers.forEach(user => {
         const wasAttending = oldAttendees.includes(user.id);
         const isAttending = newAttendees.includes(user.id);
         if (isAttending === wasAttending) return;
+
         const userRef = doc(db, "users", user.id);
         const pointChange = isAttending ? TRAINING_POINTS : -TRAINING_POINTS;
         const sessionChange = isAttending ? 1 : -1;
+        
+        // Finde den aktuellen User-Datenstand, um Fehler zu vermeiden
+        const currentUserData = allUsers.find(u => u.id === user.id);
+        
         batch.update(userRef, { 
-            points: (user.points || 0) + pointChange, 
-            trainingSessions: (user.trainingSessions || 0) + sessionChange 
+            points: (currentUserData.points || 0) + pointChange, 
+            trainingSessions: (currentUserData.trainingSessions || 0) + sessionChange 
         });
+
+        // NEU: Log-Eintrag für die Punkte-Historie erstellen
+        if (isAttending) {
+            const logRef = doc(collection(db, "point_logs")); // Neue ID generieren
+            batch.set(logRef, {
+                userId: user.id,
+                points: TRAINING_POINTS,
+                reason: reason,
+                adminId: callbacks.getCurrentUser().uid,
+                timestamp: serverTimestamp()
+            });
+        }
+        // Hinweis: Für aberkannte Punkte wird bewusst kein negativer Log-Eintrag erstellt.
     });
+    
     try {
         await batch.commit();
         callbacks.showNotification('Anwesenheit gespeichert!', 'success');
         modal.style.display = 'none';
-        callbacks.renderAllPages();
+        callbacks.renderAllPages(); // Lädt die App neu, um User-Daten zu aktualisieren
     } catch (error) {
+        console.error("Fehler beim Speichern der Anwesenheit:", error);
         callbacks.showNotification("Fehler beim Speichern.", "error");
     }
 }
