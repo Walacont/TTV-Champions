@@ -8,24 +8,47 @@ function calculateConsecutiveTrainingStreak(allSessions, userId) {
     let longestStreak = 0;
     let currentStreak = 0;
     
+    // Sortiere Sessions nach Datum, um die Serie korrekt zu berechnen
+    allSessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let lastAttendedDate = null;
+
     for (const session of allSessions) {
-        // Stellt sicher, dass 'attendees' immer ein Array ist, um Fehler zu vermeiden
+        const sessionDate = new Date(session.date);
+        sessionDate.setHours(0, 0, 0, 0); // Nur Datum berücksichtigen
+
         const attendees = session.attendees || [];
+
         if (attendees.includes(userId)) {
-            currentStreak++;
+            if (lastAttendedDate) {
+                const diffTime = Math.abs(sessionDate.getTime() - lastAttendedDate.getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 1) { // Nächster Tag
+                    currentStreak++;
+                } else if (diffDays > 1) { // Lücke in der Serie
+                    longestStreak = Math.max(longestStreak, currentStreak);
+                    currentStreak = 1; // Neue Serie beginnt
+                }
+                // Wenn diffDays === 0 (gleicher Tag), passiert nichts, Streak bleibt
+            } else {
+                currentStreak = 1; // Erste Session für die Serie
+            }
+            lastAttendedDate = sessionDate;
         } else {
+            // Benutzer hat nicht teilgenommen, Serie zurücksetzen, wenn nicht bereits zurückgesetzt
             longestStreak = Math.max(longestStreak, currentStreak);
             currentStreak = 0;
+            lastAttendedDate = null; // Zurücksetzen des letzten besuchten Datums, da die Serie unterbrochen ist
         }
     }
     return Math.max(longestStreak, currentStreak);
 }
 
+
 // Hilfsfunktion, die den gesamten Inhalt der Seite mit den neuesten Daten füllt
 function renderAllProfileContent(userData, longestStreak, pointLogs, completedChallenges, completedExercises) {
     
-    // --- KORREKTUR 1: Alle fehlerhaften SVG-Pfade sind nun korrigiert ---
-    // Ich habe sichergestellt, dass kein SVG-Pfad einen Unterstrich (_) enthält.
     const achievementsList = [
         {
             id: 'streak_5', title: 'Trainings-Serie Bronze', description: 'Nimm an 5 Trainings in Folge teil.',
@@ -106,10 +129,10 @@ function renderAllProfileContent(userData, longestStreak, pointLogs, completedCh
         } else {
             exercisesContainer.innerHTML = completedExercises.map(ex => `
                 <div class="bg-slate-700/50 p-4 rounded-lg flex items-center space-x-4">
-                    <img src="${ex.imageUrl}" alt="Übungsbild" class="w-20 h-20 object-cover rounded-md">
+                    <img src="${ex.imageUrl}" alt="Übungsbild" class="w-20 h-20 object-cover rounded-md flex-shrink-0">
                     <div class="flex-grow">
-                        <p class="text-white">${ex.description}</p>
-                    </div>
+                        <p class="font-bold text-white">${ex.title || 'Übung'}</p>
+                        </div>
                     <div class="font-bold text-teal-400 text-lg whitespace-nowrap">+${ex.points} Pkt.</div>
                 </div>
             `).join('');
@@ -118,7 +141,6 @@ function renderAllProfileContent(userData, longestStreak, pointLogs, completedCh
 }
 
 export function renderProfile(container, currentUser) {
-    // Rendert das Grundgerüst der Seite
     container.innerHTML = `
         <div class="space-y-8">
             <div class="bg-slate-800 p-6 rounded-lg shadow-lg">
@@ -130,13 +152,13 @@ export function renderProfile(container, currentUser) {
             </div>
             <div class="bg-slate-800 p-6 rounded-lg shadow-lg">
                 <h2 class="text-xl font-bold mb-4 text-white">Abgeschlossene Challenges</h2>
-                <div id="completed-challenges-container" class="space-y-4 max-h-96 overflow-y-auto">
+                <div id="completed-challenges-container" class="space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
                     <p class="text-gray-400">Lade Verlauf...</p>
                 </div>
             </div>
             <div class="bg-slate-800 p-6 rounded-lg shadow-lg">
                 <h2 class="text-xl font-bold mb-4 text-white">Abgeschlossene Übungen</h2>
-                <div id="completed-exercises-container" class="space-y-4 max-h-96 overflow-y-auto">
+                <div id="completed-exercises-container" class="space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
                     <p class="text-gray-400">Lade Verlauf...</p>
                 </div>
             </div>
@@ -151,7 +173,6 @@ export function renderProfile(container, currentUser) {
         }
         const userData = userDoc.data();
 
-        // Alle Abfragen werden gebündelt, um die Ladezeit zu optimieren
         const trainingSessionsQuery = query(collection(db, "training_sessions"), orderBy("date", "asc"));
         const pointLogsQuery = query(collection(db, "point_logs"), where("userId", "==", currentUser.uid));
         const dailyChallengesQuery = query(collection(db, "challenges"), where("completedBy", "array-contains", currentUser.uid));
@@ -184,13 +205,9 @@ export function renderProfile(container, currentUser) {
             renderAllProfileContent(userData, longestStreak, pointLogs, completedChallenges, completedExercises);
         } catch(e) {
             console.error("Fehler beim Holen der Profil-Detaildaten:", e);
-            // Zeigt eine Fehlermeldung im UI an, falls etwas schiefgeht
             container.innerHTML = `<div class="p-4 text-center text-red-400">Ein Fehler ist aufgetreten. Bitte versuche es später erneut.</div>`;
         }
     });
 
-    // --- KORREKTUR 2: So wird der "activeListeners"-Fehler behoben ---
-    // Diese Funktion muss jetzt ein Array zurückgeben, das eine "unsubscribe"-Funktion enthält.
-    // Das ist die Funktion, die Firebase (`onSnapshot`) erstellt hat, um das "Zuhören" zu beenden.
     return [userListener];
 }

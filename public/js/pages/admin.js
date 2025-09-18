@@ -21,7 +21,6 @@ import {
 
 async function updateAwardDropdown(selectElement) {
     if (!selectElement) return;
-
     try {
         const now = new Date();
         const startOfDay = new Date();
@@ -33,16 +32,12 @@ async function updateAwardDropdown(selectElement) {
         const monthlyQuery = query(collection(db, "monthly_challenges"), where("endDate", ">=", now));
 
         const [exercisesSnap, dailySnap, weeklySnap, monthlySnap] = await Promise.all([
-            getDocs(exercisesQuery),
-            getDocs(dailyQuery),
-            getDocs(weeklyQuery),
-            getDocs(monthlyQuery)
+            getDocs(exercisesQuery), getDocs(dailyQuery), getDocs(weeklyQuery), getDocs(monthlyQuery)
         ]);
 
         const exercises = exercisesSnap.docs.map(doc => ({ id: doc.id, type: 'exercises', ...doc.data() }));
         const daily = dailySnap.docs.map(doc => ({ id: doc.id, type: 'challenges', ...doc.data() }));
-        // HIER SIND DIE KORREKTUREN: Sicherstellen, dass Unterstriche verwendet werden.
-        const weekly = weeklySnap.docs.map(doc => ({ id: doc.id, type: 'weekly_challenges', ...doc.data() })); 
+        const weekly = weeklySnap.docs.map(doc => ({ id: doc.id, type: 'weekly_challenges', ...doc.data() }));
         const monthly = monthlySnap.docs.map(doc => ({ id: doc.id, type: 'monthly_challenges', ...doc.data() }));
 
         const itemsForAwarding = [...exercises, ...daily, ...weekly, ...monthly];
@@ -50,12 +45,12 @@ async function updateAwardDropdown(selectElement) {
         const awardOptionsHtml = `
             <option value="">Übung oder Challenge auswählen...</option>
             <optgroup label="Übungen">
-                ${itemsForAwarding.filter(item => item.type === 'exercises').map(item => 
-                    `<option value="exercises_${item.id}" data-points="${item.points}" data-name="${item.description}">${item.description.substring(0, 50)}...</option>`
+                ${itemsForAwarding.filter(item => item.type === 'exercises').map(item =>
+                    `<option value="exercises_${item.id}" data-points="${item.points}" data-name="${item.title}">${item.title}</option>`
                 ).join('')}
             </optgroup>
             <optgroup label="Aktive Challenges">
-                ${itemsForAwarding.filter(item => item.type !== 'exercises').map(item => 
+                ${itemsForAwarding.filter(item => item.type !== 'exercises').map(item =>
                     `<option value="${item.type}_${item.id}" data-points="${item.points}" data-name="${item.title}">${item.title}</option>`
                 ).join('')}
             </optgroup>
@@ -77,6 +72,7 @@ export async function renderAdmin(container, callbacks) {
             <div class="bg-slate-800 p-6 rounded-lg shadow-lg">
                 <h2 class="text-xl font-bold mb-4">Übungen verwalten</h2>
                 <form id="exercise-form" class="space-y-4">
+                    <input type="text" id="exercise-title" placeholder="Titel der Übung" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600" required>
                     <div>
                         <label for="exercise-image" class="block text-sm font-medium text-gray-300 mb-2">Bild hochladen</label>
                         <input type="file" id="exercise-image" accept="image/*" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" required>
@@ -190,31 +186,41 @@ async function handlePointsForm(e, currentUser, callbacks) {
     const itemDocRef = doc(db, collectionName, docId);
 
     try {
-    // ... (Logik zum Speichern der Punkte)
+        const playerDoc = await getDoc(playerDocRef);
+        if (!playerDoc.exists()) throw new Error("Spieler nicht gefunden");
 
-    callbacks.showNotification(`Leistung für ${playerDoc.data().name} erfasst.`, 'success');
+        const currentPoints = playerDoc.data().points || 0;
+        await updateDoc(playerDocRef, { points: currentPoints + amount });
 
-    // RICHTIG: ZUERST das Formular zurücksetzen, solange es noch existiert.
-    document.getElementById('points-form').reset();
+        await addDoc(collection(db, "point_logs"), {
+            userId: playerId, points: amount, reason: reason,
+            adminId: currentUser.uid, timestamp: serverTimestamp()
+        });
 
-    // DANACH die Seite neu laden, um die aktualisierten Daten anzuzeigen.
-    // Falls du diese Zeile bei dir hast, stelle sicher, dass sie am Ende steht.
-    // callbacks.renderAllPages(); 
+        await updateDoc(itemDocRef, {
+            completedBy: arrayUnion(playerId)
+        });
 
-} catch (error) {
-    console.error("Fehler bei der Punktevergabe: ", error);
-    callbacks.showNotification("Ein Fehler ist aufgetreten.", "error");
-}
+        callbacks.showNotification(`Leistung für ${playerDoc.data().name} erfasst.`, 'success');
+        document.getElementById('points-form').reset();
+        
+    } catch (error) {
+        console.error("Fehler bei der Punktevergabe: ", error);
+        callbacks.showNotification("Ein Fehler ist aufgetreten.", "error");
+    }
 }
 
 async function handleExerciseForm(e, callbacks) {
     e.preventDefault();
+    // NEU: Titel aus dem Formular auslesen
+    const title = document.getElementById('exercise-title').value;
     const description = document.getElementById('exercise-desc').value;
     const points = parseInt(document.getElementById('exercise-points').value);
     const fileInput = document.getElementById('exercise-image');
     const file = fileInput.files[0];
 
-    if (!description || isNaN(points) || !file) {
+    // NEU: Prüfung, ob der Titel vorhanden ist
+    if (!title || !description || isNaN(points) || !file) {
         callbacks.showNotification("Bitte alle Felder ausfüllen und ein Bild auswählen.", "error");
         return;
     }
@@ -239,7 +245,6 @@ async function handleExerciseForm(e, callbacks) {
                 progressBar.style.width = progress + '%';
             }, 
             (error) => {
-                console.error("Upload failed:", error);
                 callbacks.showNotification("Fehler beim Bildupload.", "error");
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Übung erstellen';
@@ -247,7 +252,9 @@ async function handleExerciseForm(e, callbacks) {
             }, 
             async () => {
                 const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                // NEU: Titel zum Datenbank-Objekt hinzufügen
                 await addDoc(collection(db, "exercises"), {
+                    title: title,
                     description: description,
                     points: points,
                     imageUrl: downloadURL,
@@ -269,6 +276,7 @@ async function handleExerciseForm(e, callbacks) {
     }
 }
 
+// Die restlichen Funktionen (handleChallengeForm, etc.) bleiben unverändert
 async function handleChallengeForm(e, callbacks) {
     e.preventDefault();
     const type = document.getElementById('challenge-type').value;

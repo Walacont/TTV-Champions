@@ -90,19 +90,48 @@
         </div>
     </div>
     
-    <div id="exercise-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" style="display: none;">
-        <div class="bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div class="p-4 border-b border-slate-700 flex justify-end">
-                <button id="exercise-modal-close-btn" class="text-3xl leading-none px-2 py-0 rounded-full hover:bg-slate-700">&times;</button>
+    <div id="exercise-modal" class="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center p-4 z-50" style="display: none;">
+        <div class="bg-slate-800 rounded-lg shadow-xl max-w-2xl w-full relative flex flex-col max-h-[90vh]">
+            <button id="exercise-modal-close-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white text-3xl leading-none z-10">&times;</button>
+            
+            <div class="overflow-y-auto custom-scrollbar">
+                <img id="modal-exercise-image" src="" alt="Übungsbild" class="w-full object-contain rounded-t-lg">
+                <div class="p-6">
+                    <h2 id="modal-exercise-title" class="text-2xl font-bold text-white mb-3"></h2>
+                    <p id="modal-exercise-desc" class="text-gray-300 mb-4"></p>
+                    <div id="modal-exercise-points" class="text-right text-xl font-bold text-teal-400"></div>
+                </div>
             </div>
-            <div class="p-6 overflow-y-auto">
-                <img id="modal-exercise-image" src="" alt="Übungsbild" class="w-full h-auto rounded-lg mb-6">
-                <p id="modal-exercise-desc" class="text-gray-300 mb-4 whitespace-pre-wrap"></p>
-                <div id="modal-exercise-points" class="text-right text-2xl font-bold text-teal-400"></div>
-            </div>
+
         </div>
     </div>
+    <style>
+    /* FÜR WEBKIT-BROWSER (Chrome, Safari) */
+    .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    }
 
+    .custom-scrollbar::-webkit-scrollbar-track {
+    background: #334155; /* slate-700 */
+    border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #4F46E5; /* indigo-600 */
+    border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #4338CA; /* indigo-700 */
+    }
+
+    /* FÜR FIREFOX */
+    .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #4F46E5 #334155;
+    }
+    </style>
+    
     <script type="module" src="/js/main.js"></script>
 </body>
 </html>
