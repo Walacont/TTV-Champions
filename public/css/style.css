@@ -1,0 +1,22 @@
+body { 
+    font-family: 'Inter', sans-serif; 
+}
+.nav-link { 
+    transition: all 0.2s ease-in-out; 
+}
+.nav-link.active { 
+    background-color: #4f46e5; 
+    color: white; 
+}
+.page-content, #attendance-modal, #player-management-modal { 
+    display: none; 
+}
+.admin-nav { 
+    display: none; /* Wird per JS gesteuert */
+}
+.confirm-delete { 
+    background-color: #dc2626 !important; 
+}
+.confirm-delete:hover { 
+    background-color: #b91c1c !important; 
+}

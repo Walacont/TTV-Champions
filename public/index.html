@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTV-Champions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-slate-900 text-gray-200">
+
+    <div id="auth-container" class="min-h-screen flex items-center justify-center p-4">
+         <div class="max-w-md w-full bg-slate-800 p-8 rounded-lg shadow-lg">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-white">TTV-Champions</h1>
+                <p id="auth-subtitle" class="text-gray-400">Bitte melde dich an oder registriere dich.</p>
+            </div>
+            <p id="auth-error" class="text-red-400 text-center mb-4 h-5"></p>
+            <form id="login-form" class="space-y-4">
+                <input type="email" id="login-email" placeholder="E-Mail" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                <input type="password" id="login-password" placeholder="Passwort" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition">Anmelden</button>
+            </form>
+            <div class="text-center mt-4 text-sm">
+                <a href="#" id="show-reset" class="text-indigo-400 hover:underline">Passwort vergessen?</a>
+                <span class="text-gray-500 mx-2">|</span>
+                <a href="#" id="show-register" class="text-indigo-400 hover:underline">Noch kein Konto?</a>
+            </div>
+            <form id="register-form" class="space-y-4 mt-6" style="display: none;">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <input type="text" id="register-firstname" placeholder="Vorname" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    <input type="text" id="register-lastname" placeholder="Nachname" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                </div>
+                <input type="email" id="register-email" placeholder="E-Mail" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                <input type="password" id="register-password" placeholder="Passwort (mind. 6 Zeichen)" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                <button type="submit" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 rounded-lg transition">Registrieren</button>
+                 <div class="text-center mt-4">
+                    <a href="#" id="show-login" class="text-indigo-400 hover:underline">Bereits ein Konto? Zur Anmeldung.</a>
+                </div>
+            </form>
+            <form id="reset-form" class="space-y-4 mt-6" style="display: none;">
+                <input type="email" id="reset-email" placeholder="Deine E-Mail-Adresse" class="w-full p-3 bg-slate-700 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-lg transition">Reset-Link anfordern</button>
+                <div class="text-center mt-4">
+                    <a href="#" id="show-login-from-reset" class="text-indigo-400 hover:underline">Zurück zur Anmeldung</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-content" style="display: none;" class="container mx-auto max-w-4xl p-4 md:p-6">
+        <div id="notification-bar" class="hidden p-4 mb-4 rounded-lg text-white font-semibold"></div>
+        <header class="flex items-center justify-between mb-6">
+            <div class="flex items-center space-x-3">
+                <svg class="w-8 h-8 text-indigo-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 2C12.2239 2 12 2.22385 12 2.5V3.09455C10.1557 3.5218 8.61803 4.64082 7.5 6.19943L6.87868 5.62132C6.68342 5.42606 6.36684 5.42606 6.17157 5.62132L5.62132 6.17157C5.42606 6.36684 5.42606 6.68342 5.62132 6.87868L6.2023 7.50289C4.64654 8.6186 3.52103 10.1558 3.09455 12H2.5C2.22386 12 2 12.2239 2 12.5C2 12.7761 2.22386 13 2.5 13H3.09455C3.5218 14.8443 4.64082 16.382 6.19943 17.5L5.62132 18.1213C5.42606 18.3166 5.42606 18.6332 5.62132 18.8284L6.17157 19.3787C6.36684 19.5739 6.68342 19.5739 6.87868 19.3787L7.50085 18.7998C8.61633 20.354 10.154 21.4789 12 21.9054V22.5C12 22.7761 12.2239 23 12.5 23C12.7761 23 13 22.7761 13 22.5V21.9054C14.846 21.4789 16.3837 20.354 17.4991 18.7998L18.1213 19.3787C18.3166 19.5739 18.6332 19.5739 18.8284 19.3787L19.3787 18.8284C19.5739 18.6332 19.5739 18.3166 19.3787 18.1213L18.802 17.5011C20.3551 16.3847 21.4792 14.8464 21.9054 13H22.5C22.7761 13 23 12.7761 23 12.5C23 12.2239 22.7761 12 22.5 12H21.9054C21.4782 10.1536 20.3535 8.61528 18.7977 7.5002L19.3787 6.87868C19.5739 6.68342 19.5739 6.36684 19.3787 6.17157L18.8284 5.62132C18.6332 5.42606 18.3166 5.42606 18.1213 5.62132L17.5 6.19943C16.382 4.64082 14.8443 3.5218 13 3.09455V2.5C13 2.22385 12.7761 2 12.5 2ZM12.5 5C16.366 5 19.5 8.13401 19.5 12C19.5 15.866 16.366 19 12.5 19C8.63401 19 5.5 15.866 5.5 12C5.5 8.13401 8.63401 5 12.5 5Z"/></svg>
+                <h1 class="text-2xl font-bold text-white">TTV-Champions</h1>
+            </div>
+            <div class="text-right">
+                <p class="text-md font-semibold" id="user-name-display"></p>
+                <button id="logout-button" class="text-sm text-indigo-400 hover:underline">Abmelden</button>
+            </div>
+        </header>
+
+        <nav id="main-nav" class="bg-slate-800 rounded-lg p-2 flex justify-center space-x-2 md:space-x-4 mb-8 sticky top-4 z-10 shadow-lg"></nav>
+        <main id="page-container"></main>
+    </div>
+
+    <div id="attendance-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" style="display: none;">
+        <div class="bg-slate-800 rounded-lg shadow-xl w-full max-w-md">
+            <div class="p-6 border-b border-slate-700">
+                <h2 class="text-xl font-bold">Anwesenheit für <span id="modal-date-display"></span></h2>
+            </div>
+            <div id="modal-player-list" class="p-6 max-h-80 overflow-y-auto space-y-3"></div>
+            <div class="p-4 bg-slate-900/50 flex justify-end space-x-4 rounded-b-lg">
+                <button id="modal-close-btn" class="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-700 transition">Abbrechen</button>
+                <button id="modal-save-btn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 font-semibold transition">Speichern</button>
+            </div>
+        </div>
+    </div>
+    <div id="player-management-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" style="display: none;">
+        <div class="bg-slate-800 rounded-lg shadow-xl w-full max-w-lg">
+            <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+                <h2 class="text-xl font-bold">Spieler verwalten</h2>
+                <button id="player-modal-close-btn" class="text-2xl leading-none px-2 py-1 rounded-full hover:bg-slate-700">&times;</button>
+            </div>
+            <div id="modal-player-management-list" class="p-6 max-h-96 overflow-y-auto space-y-3"></div>
+        </div>
+    </div>
+    
+    <div id="exercise-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" style="display: none;">
+        <div class="bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="p-4 border-b border-slate-700 flex justify-end">
+                <button id="exercise-modal-close-btn" class="text-3xl leading-none px-2 py-0 rounded-full hover:bg-slate-700">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <img id="modal-exercise-image" src="" alt="Übungsbild" class="w-full h-auto rounded-lg mb-6">
+                <p id="modal-exercise-desc" class="text-gray-300 mb-4 whitespace-pre-wrap"></p>
+                <div id="modal-exercise-points" class="text-right text-2xl font-bold text-teal-400"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>
