@@ -41,7 +41,10 @@ async function showPage(pageId) {
     if (!currentUser) return;
     currentPageId = pageId; // Die aktuelle Seite speichern
 
-    activeListeners.forEach(unsubscribe => unsubscribe());
+    // Sicherheitsabfrage, um den Fehler zu verhindern
+    if (Array.isArray(activeListeners)) {
+        activeListeners.forEach(unsubscribe => unsubscribe());
+    }
     activeListeners = [];
 
     document.querySelectorAll('#main-nav .nav-link').forEach(l => l.classList.remove('active'));
@@ -69,17 +72,18 @@ async function showPage(pageId) {
             if (currentUser.role === 'admin') {
                 const callbacks = {
                     showNotification: showNotification,
-                    // ÄNDERUNG: Ruft nicht mehr die ganze App neu auf, sondern lädt nur die aktuelle Seite neu.
                     renderAllPages: () => showPage(currentPageId), 
                     getCurrentUser: () => currentUser,
                     getAllUsers: () => allUsers
                 };
-                activeListeners = renderAdmin(pageContainer, callbacks);
+                // KORREKTUR: Wir warten auf das Ergebnis der async Funktion.
+                activeListeners = await renderAdmin(pageContainer, callbacks);
             }
             break;
     }
 }
 
+// Macht die showPage Funktion global verfügbar, falls sie von außerhalb aufgerufen wird
 window.showPage = showPage;
 
 async function initializeAppUI() {
@@ -115,7 +119,10 @@ handleAuthState(async (user) => {
     if (currentUser) {
         await initializeAppUI();
     } else {
-        activeListeners.forEach(unsubscribe => unsubscribe());
+        // Sicherheitsabfrage auch hier für den Logout
+        if (Array.isArray(activeListeners)) {
+            activeListeners.forEach(unsubscribe => unsubscribe());
+        }
         activeListeners = [];
         navContainer.innerHTML = '';
         pageContainer.innerHTML = '';

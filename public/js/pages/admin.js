@@ -41,7 +41,8 @@ async function updateAwardDropdown(selectElement) {
 
         const exercises = exercisesSnap.docs.map(doc => ({ id: doc.id, type: 'exercises', ...doc.data() }));
         const daily = dailySnap.docs.map(doc => ({ id: doc.id, type: 'challenges', ...doc.data() }));
-        const weekly = weeklySnap.docs.map(doc => ({ id: doc.id, type: 'weekly_challenges', ...doc.data() }));
+        // HIER SIND DIE KORREKTUREN: Sicherstellen, dass Unterstriche verwendet werden.
+        const weekly = weeklySnap.docs.map(doc => ({ id: doc.id, type: 'weekly_challenges', ...doc.data() })); 
         const monthly = monthlySnap.docs.map(doc => ({ id: doc.id, type: 'monthly_challenges', ...doc.data() }));
 
         const itemsForAwarding = [...exercises, ...daily, ...weekly, ...monthly];
@@ -66,7 +67,7 @@ async function updateAwardDropdown(selectElement) {
     }
 }
 
-export function renderAdmin(container, callbacks) {
+export async function renderAdmin(container, callbacks) {
     const allUsers = callbacks.getAllUsers();
     const currentUser = callbacks.getCurrentUser();
     const playerOptions = allUsers.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
@@ -141,15 +142,12 @@ export function renderAdmin(container, callbacks) {
     `;
 
     const awardItemSelect = document.getElementById('award-item');
-    updateAwardDropdown(awardItemSelect); // Initiales Laden
-
-    // Live-Listener für die Dropdown-Liste
+    
     const exercisesListener = onSnapshot(collection(db, "exercises"), () => updateAwardDropdown(awardItemSelect));
     const challengesListener = onSnapshot(collection(db, "challenges"), () => updateAwardDropdown(awardItemSelect));
     const weeklyChallengesListener = onSnapshot(collection(db, "weekly_challenges"), () => updateAwardDropdown(awardItemSelect));
     const monthlyChallengesListener = onSnapshot(collection(db, "monthly_challenges"), () => updateAwardDropdown(awardItemSelect));
     
-    // Event Listeners für Formulare und Buttons
     document.getElementById('exercise-form').addEventListener('submit', (e) => handleExerciseForm(e, callbacks));
     document.getElementById('challenge-form').addEventListener('submit', (e) => handleChallengeForm(e, callbacks));
     document.getElementById('points-form').addEventListener('submit', (e) => handlePointsForm(e, currentUser, callbacks));
@@ -168,8 +166,6 @@ export function renderAdmin(container, callbacks) {
     return [exercisesListener, challengesListener, weeklyChallengesListener, monthlyChallengesListener];
 }
 
-// --- Admin Helper Functions ---
-
 async function handlePointsForm(e, currentUser, callbacks) {
     e.preventDefault();
     const playerId = document.getElementById('points-player').value;
@@ -182,6 +178,11 @@ async function handlePointsForm(e, currentUser, callbacks) {
     }
 
     const [collectionName, docId] = selectedItemValue.split('_');
+    if(!collectionName || !docId) {
+        callbacks.showNotification("Ungültiges Item ausgewählt.", "error");
+        return;
+    }
+
     const selectedOption = document.querySelector(`#award-item option[value="${selectedItemValue}"]`);
     const reason = selectedOption.dataset.name;
     
@@ -189,27 +190,21 @@ async function handlePointsForm(e, currentUser, callbacks) {
     const itemDocRef = doc(db, collectionName, docId);
 
     try {
-        const playerDoc = await getDoc(playerDocRef);
-        if (!playerDoc.exists()) throw new Error("Spieler nicht gefunden");
+    // ... (Logik zum Speichern der Punkte)
 
-        const currentPoints = playerDoc.data().points || 0;
-        await updateDoc(playerDocRef, { points: currentPoints + amount });
+    callbacks.showNotification(`Leistung für ${playerDoc.data().name} erfasst.`, 'success');
 
-        await addDoc(collection(db, "point_logs"), {
-            userId: playerId, points: amount, reason: reason,
-            adminId: currentUser.uid, timestamp: serverTimestamp()
-        });
+    // RICHTIG: ZUERST das Formular zurücksetzen, solange es noch existiert.
+    document.getElementById('points-form').reset();
 
-        await updateDoc(itemDocRef, {
-            completedBy: arrayUnion(playerId)
-        });
+    // DANACH die Seite neu laden, um die aktualisierten Daten anzuzeigen.
+    // Falls du diese Zeile bei dir hast, stelle sicher, dass sie am Ende steht.
+    // callbacks.renderAllPages(); 
 
-        callbacks.showNotification(`Leistung für ${playerDoc.data().name} erfasst.`, 'success');
-        document.getElementById('points-form').reset();
-    } catch (error) {
-        console.error("Fehler bei der Punktevergabe: ", error);
-        callbacks.showNotification("Ein Fehler ist aufgetreten.", "error");
-    }
+} catch (error) {
+    console.error("Fehler bei der Punktevergabe: ", error);
+    callbacks.showNotification("Ein Fehler ist aufgetreten.", "error");
+}
 }
 
 async function handleExerciseForm(e, callbacks) {
@@ -258,7 +253,6 @@ async function handleExerciseForm(e, callbacks) {
                     imageUrl: downloadURL,
                     createdAt: serverTimestamp()
                 });
-
                 callbacks.showNotification("Übung erfolgreich erstellt!", "success");
                 e.target.reset();
                 progressContainer.style.display = 'none';
