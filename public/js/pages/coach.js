@@ -66,7 +66,7 @@ async function updateAwardDropdown(selectElement) {
     }
 }
 
-export async function renderAdmin(container, callbacks) {
+export async function rendercoach(container, callbacks) {
     const allUsers = callbacks.getAllUsers();
     const currentUser = callbacks.getCurrentUser();
     const playerOptions = allUsers.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
@@ -207,7 +207,7 @@ async function handlePointsForm(e, currentUser, callbacks) {
 
             await addDoc(collection(db, "point_logs"), {
                 userId: playerId, points: amount, reason: reason,
-                adminId: currentUser.uid, timestamp: serverTimestamp()
+                coachId: currentUser.uid, timestamp: serverTimestamp()
             });
 
             callbacks.showNotification(`Manuell ${amount} Punkte für ${playerDoc.data().name} erfasst.`, 'success');
@@ -247,7 +247,7 @@ async function handlePointsForm(e, currentUser, callbacks) {
 
             await addDoc(collection(db, "point_logs"), {
                 userId: playerId, points: amount, reason: reason,
-                adminId: currentUser.uid, timestamp: serverTimestamp()
+                coachId: currentUser.uid, timestamp: serverTimestamp()
             });
 
             await updateDoc(itemDocRef, {
@@ -423,7 +423,7 @@ async function openAttendanceModal(dateStr, allUsers, callbacks) {
     document.getElementById('modal-save-btn').onclick = () => handleSaveAttendance(dateStr, attendees, allUsers, callbacks);
 }
 
-// admin.js
+// coach.js
 
 async function handleSaveAttendance(dateStr, oldAttendees, allUsers, callbacks) {
     const modal = document.getElementById('attendance-modal');
@@ -460,7 +460,7 @@ async function handleSaveAttendance(dateStr, oldAttendees, allUsers, callbacks) 
                 userId: user.id,
                 points: TRAINING_POINTS,
                 reason: reason,
-                adminId: callbacks.getCurrentUser().uid,
+                coachId: callbacks.getCurrentUser().uid,
                 timestamp: serverTimestamp()
             });
         }

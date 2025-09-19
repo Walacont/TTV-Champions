@@ -11,7 +11,7 @@ body {
 .page-content, #attendance-modal, #player-management-modal { 
     display: none; 
 }
-.admin-nav { 
+.coach-nav { 
     display: none; /* Wird per JS gesteuert */
 }
 .confirm-delete { 

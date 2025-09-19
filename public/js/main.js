@@ -6,7 +6,7 @@ import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/
 import { renderDashboard } from './pages/dashboard.js';
 import { renderProfile } from './pages/profile.js';
 import { renderLeaderboard } from './pages/leaderboard.js';
-import { renderAdmin } from './pages/admin.js';
+import { rendercoach } from './pages/coach.js';
 import { renderExercises } from './pages/exercises.js';
 
 // Globaler Zustand der App
@@ -61,15 +61,15 @@ async function showPage(pageId) {
             activeListeners = renderProfile(pageContainer, currentUser);
             break;
         case 'leaderboard':
-            if (currentUser.role === 'admin') {
+            if (currentUser.role === 'coach') {
                 activeListeners = renderLeaderboard(pageContainer, currentUser);
             }
             break;
         case 'exercises':
             activeListeners = renderExercises(pageContainer);
             break;
-        case 'admin':
-            if (currentUser.role === 'admin') {
+        case 'coach':
+            if (currentUser.role === 'coach') {
                 const callbacks = {
                     showNotification: showNotification,
                     renderAllPages: () => showPage(currentPageId), 
@@ -77,7 +77,7 @@ async function showPage(pageId) {
                     getAllUsers: () => allUsers
                 };
                 // KORREKTUR: Wir warten auf das Ergebnis der async Funktion.
-                activeListeners = await renderAdmin(pageContainer, callbacks);
+                activeListeners = await rendercoach(pageContainer, callbacks);
             }
             break;
     }
@@ -94,12 +94,12 @@ async function initializeAppUI() {
         <button data-page="dashboard" class="nav-link px-4 py-2 rounded-md font-semibold">Dashboard</button>
         <button data-page="profile" class="nav-link px-4 py-2 rounded-md font-semibold">Meine Erfolge</button>
     `;
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'coach') {
         navHTML += `<button data-page="leaderboard" class="nav-link px-4 py-2 rounded-md font-semibold">Rangliste</button>`;
     }
     navHTML += `<button data-page="exercises" class="nav-link px-4 py-2 rounded-md font-semibold">Übungen</button>`;
-    if (currentUser.role === 'admin') {
-        navHTML += `<button data-page="admin" class="nav-link px-4 py-2 rounded-md font-semibold">Admin</button>`;
+    if (currentUser.role === 'coach') {
+        navHTML += `<button data-page="coach" class="nav-link px-4 py-2 rounded-md font-semibold">Coach</button>`;
     }
     navContainer.innerHTML = navHTML;
     
