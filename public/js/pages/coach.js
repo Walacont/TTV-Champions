@@ -14,7 +14,6 @@ import {
     arrayUnion,
     where,
     query,
-    limit,
     orderBy,
     onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -66,7 +65,7 @@ async function updateAwardDropdown(selectElement) {
     }
 }
 
-export async function renderAdmin(container, callbacks) {
+export async function rendercoach(container, callbacks) {
     const allUsers = callbacks.getAllUsers();
     const currentUser = callbacks.getCurrentUser();
     const playerOptions = allUsers.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
@@ -163,7 +162,6 @@ export async function renderAdmin(container, callbacks) {
     });
     document.getElementById('manage-players-btn').addEventListener('click', () => openPlayerManagementModal(allUsers, callbacks));
     
-    // NEU: Logik zum Ein- und Ausblenden der Felder
     awardItemSelect.addEventListener('change', (e) => {
         const selectedOption = e.target.options[e.target.selectedIndex];
         const manualReasonContainer = document.getElementById('manual-reason-container');
@@ -171,12 +169,12 @@ export async function renderAdmin(container, callbacks) {
 
         if (e.target.value === 'manual_award') {
             manualReasonContainer.style.display = 'block';
-            pointsAmountInput.value = ''; // Punktefeld leeren für manuelle Eingabe
+            pointsAmountInput.value = '';
             pointsAmountInput.readOnly = false;
         } else {
             manualReasonContainer.style.display = 'none';
             pointsAmountInput.value = selectedOption.dataset.points || '';
-            pointsAmountInput.readOnly = true; // Punktefeld sperren, da es vordefiniert ist
+            pointsAmountInput.readOnly = true;
         }
     });
 
@@ -189,11 +187,10 @@ async function handlePointsForm(e, currentUser, callbacks) {
     const selectedItemValue = document.getElementById('award-item').value;
     const amount = parseInt(document.getElementById('points-amount').value);
 
-    // NEU: Logik in zwei Fälle aufteilen: Manuell vs. Challenge/Übung
     if (selectedItemValue === 'manual_award') {
         const reason = document.getElementById('manual-reason').value;
-        if (!playerId || !reason || isNaN(amount) || amount <= 0) {
-            callbacks.showNotification("Bitte Spieler, Begründung und gültige Punkte angeben.", "error");
+        if (!playerId || !reason || isNaN(amount) || amount === 0) {
+            callbacks.showNotification("Bitte Spieler, Begründung und eine gültige Punktzahl (nicht 0) angeben.", "error");
             return;
         }
         
@@ -207,12 +204,13 @@ async function handlePointsForm(e, currentUser, callbacks) {
 
             await addDoc(collection(db, "point_logs"), {
                 userId: playerId, points: amount, reason: reason,
-                adminId: currentUser.uid, timestamp: serverTimestamp()
+                coachId: currentUser.uid, timestamp: serverTimestamp()
             });
 
-            callbacks.showNotification(`Manuell ${amount} Punkte für ${playerDoc.data().name} erfasst.`, 'success');
+            callbacks.showNotification(`${amount} Punkte für ${playerDoc.data().name} erfasst.`, 'success');
             document.getElementById('points-form').reset();
-            document.getElementById('manual-reason-container').style.display = 'none'; // Feld wieder ausblenden
+            document.getElementById('manual-reason-container').style.display = 'none';
+            callbacks.renderAllPages();
 
         } catch (error) {
             console.error("Fehler bei manueller Punktevergabe: ", error);
@@ -220,7 +218,6 @@ async function handlePointsForm(e, currentUser, callbacks) {
         }
 
     } else {
-        // Dies ist die bisherige Logik für Challenges und Übungen
         if (!playerId || !selectedItemValue || isNaN(amount)) {
             callbacks.showNotification("Bitte Spieler, Item und Punkte angeben.", "error");
             return;
@@ -247,7 +244,7 @@ async function handlePointsForm(e, currentUser, callbacks) {
 
             await addDoc(collection(db, "point_logs"), {
                 userId: playerId, points: amount, reason: reason,
-                adminId: currentUser.uid, timestamp: serverTimestamp()
+                coachId: currentUser.uid, timestamp: serverTimestamp()
             });
 
             await updateDoc(itemDocRef, {
@@ -256,6 +253,7 @@ async function handlePointsForm(e, currentUser, callbacks) {
 
             callbacks.showNotification(`Leistung für ${playerDoc.data().name} erfasst.`, 'success');
             document.getElementById('points-form').reset();
+            callbacks.renderAllPages();
         } catch (error) {
             console.error("Fehler bei der Punktevergabe: ", error);
             callbacks.showNotification("Ein Fehler ist aufgetreten.", "error");
@@ -263,7 +261,6 @@ async function handlePointsForm(e, currentUser, callbacks) {
     }
 }
 
-// ... Der Rest der Datei (handleExerciseForm, handleChallengeForm, etc.) bleibt unverändert ...
 async function handleExerciseForm(e, callbacks) {
     e.preventDefault();
     const title = document.getElementById('exercise-title').value;
@@ -397,7 +394,7 @@ async function handleOfflinePlayerForm(e, callbacks) {
         await addDoc(collection(db, "users"), {
             firstname, lastname, name: `${firstname} ${lastname}`,
             points: 0, trainingSessions: 0, badges: [],
-            role: 'user', isOffline: true
+            role: 'player', isOffline: true
         });
         callbacks.showNotification(`Spieler ${firstname} ${lastname} wurde erstellt.`, 'success');
         e.target.reset();
@@ -423,8 +420,6 @@ async function openAttendanceModal(dateStr, allUsers, callbacks) {
     document.getElementById('modal-save-btn').onclick = () => handleSaveAttendance(dateStr, attendees, allUsers, callbacks);
 }
 
-// admin.js
-
 async function handleSaveAttendance(dateStr, oldAttendees, allUsers, callbacks) {
     const modal = document.getElementById('attendance-modal');
     const newAttendees = Array.from(document.querySelectorAll('#modal-player-list input:checked')).map(cb => cb.value);
@@ -445,7 +440,6 @@ async function handleSaveAttendance(dateStr, oldAttendees, allUsers, callbacks) 
         const pointChange = isAttending ? TRAINING_POINTS : -TRAINING_POINTS;
         const sessionChange = isAttending ? 1 : -1;
         
-        // Finde den aktuellen User-Datenstand, um Fehler zu vermeiden
         const currentUserData = allUsers.find(u => u.id === user.id);
         
         batch.update(userRef, { 
@@ -453,25 +447,23 @@ async function handleSaveAttendance(dateStr, oldAttendees, allUsers, callbacks) 
             trainingSessions: (currentUserData.trainingSessions || 0) + sessionChange 
         });
 
-        // NEU: Log-Eintrag für die Punkte-Historie erstellen
         if (isAttending) {
-            const logRef = doc(collection(db, "point_logs")); // Neue ID generieren
+            const logRef = doc(collection(db, "point_logs"));
             batch.set(logRef, {
                 userId: user.id,
                 points: TRAINING_POINTS,
                 reason: reason,
-                adminId: callbacks.getCurrentUser().uid,
+                coachId: callbacks.getCurrentUser().uid,
                 timestamp: serverTimestamp()
             });
         }
-        // Hinweis: Für aberkannte Punkte wird bewusst kein negativer Log-Eintrag erstellt.
     });
     
     try {
         await batch.commit();
         callbacks.showNotification('Anwesenheit gespeichert!', 'success');
         modal.style.display = 'none';
-        callbacks.renderAllPages(); // Lädt die App neu, um User-Daten zu aktualisieren
+        callbacks.renderAllPages();
     } catch (error) {
         console.error("Fehler beim Speichern der Anwesenheit:", error);
         callbacks.showNotification("Fehler beim Speichern.", "error");
@@ -487,10 +479,20 @@ function openPlayerManagementModal(users, callbacks) {
                 <p class="font-semibold">${user.name}</p>
                 <p class="text-xs text-gray-400">${user.email || 'Offline-Spieler'}</p>
             </div>
-            <button data-userid="${user.id}" data-username="${user.name}" class="remove-player-btn bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition">Entfernen</button>
+            <div class="flex items-center">
+                <button data-userid="${user.id}" data-username="${user.name}" class="remove-player-btn bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition">Entfernen</button>
+                
+                ${user.role !== 'coach' ? `
+                    <button data-userid="${user.id}" data-username="${user.name}" class="promote-coach-btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition ml-2">Ernennen</button>
+                ` : `
+                    <span class="text-xs text-gray-500 ml-4 px-4">Coach</span>
+                `}
+            </div>
         </div>
     `).join('');
+
     document.querySelectorAll('#modal-player-management-list .remove-player-btn').forEach(btn => btn.addEventListener('click', (e) => handleRemovePlayerClick(e, callbacks)));
+    document.querySelectorAll('#modal-player-management-list .promote-coach-btn').forEach(btn => btn.addEventListener('click', (e) => handlePromotePlayerClick(e, callbacks)));
     document.getElementById('player-modal-close-btn').onclick = () => modal.style.display = 'none';
 }
 
@@ -518,5 +520,25 @@ async function handleRemovePlayerClick(e, callbacks) {
             btn.classList.remove('confirm-delete');
             btn.textContent = 'Entfernen';
         }, 4000);
+    }
+}
+
+async function handlePromotePlayerClick(e, callbacks) {
+    const btn = e.target;
+    const userId = btn.dataset.userid;
+    const userName = btn.dataset.username;
+
+    if (confirm(`Möchtest du ${userName} wirklich zum Coach ernennen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
+        try {
+            const userDocRef = doc(db, "users", userId);
+            await updateDoc(userDocRef, { role: 'coach' });
+
+            callbacks.showNotification(`${userName} ist jetzt ein Coach.`, 'success');
+            document.getElementById('player-management-modal').style.display = 'none';
+            callbacks.renderAllPages();
+        } catch (error) {
+            console.error("Fehler beim Ernennen zum Coach:", error);
+            callbacks.showNotification("Ein Fehler ist aufgetreten. Stelle sicher, dass deine Firestore-Regeln korrekt sind.", "error");
+        }
     }
 }
