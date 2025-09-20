@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konto aktivieren - TTV-Champions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-900 text-gray-200">
+
+    <div class="min-h-screen flex items-center justify-center p-4">
+         <div class="max-w-md w-full bg-slate-800 p-8 rounded-lg shadow-lg">
+            <div class="text-center mb-8">
+                <h1 id="register-title" class="text-3xl font-bold text-white">Konto aktivieren</h1>
+                <p id="register-subtitle" class="text-gray-400">Lade Informationen...</p>
+            </div>
+            <p id="register-error" class="text-red-400 text-center mb-4 h-5"></p>
+            
+            <form id="register-form" class="space-y-4" style="display: none;">
+                <input type="email" id="register-email" placeholder="Deine E-Mail-Adresse" class="w-full p-3 bg-slate-700 rounded-lg" required>
+                <input type="password" id="register-password" placeholder="Wähle ein Passwort (mind. 6 Zeichen)" class="w-full p-3 bg-slate-700 rounded-lg" required>
+                <button type="submit" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 rounded-lg transition">Konto aktivieren</button>
+            </form>
+         </div>
+    </div>
+    
+    <script type="module" src="/js/register.js"></script>
+</body>
+</html>

@@ -1,6 +1,8 @@
-import { db } from './firebase-config.js';
+// js/main.js
+
+import { db, auth } from './firebase-config.js';
 import { handleAuthState } from './auth.js';
-// *** HIER IST DIE KORREKTUR ***
+import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, getDocs, getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Importiere alle Seiten-Renderer
@@ -15,12 +17,9 @@ let currentUser = null;
 let allUsers = [];
 let activeListeners = [];
 let currentPageId = 'dashboard';
-
-// DOM-Elemente
 const navContainer = document.getElementById('main-nav');
 const pageContainer = document.getElementById('page-container');
 
-// --- UI-Hilfsfunktionen ---
 function showNotification(message, type = 'success') {
     const notificationBar = document.getElementById('notification-bar');
     notificationBar.textContent = message;
@@ -29,7 +28,6 @@ function showNotification(message, type = 'success') {
     setTimeout(() => { notificationBar.classList.add('hidden'); }, 4000);
 }
 
-// --- Daten- und Render-Logik ---
 async function fetchAllUsers() {
     const usersCol = collection(db, "users");
     const userSnapshot = await getDocs(usersCol);
@@ -75,9 +73,11 @@ async function showPage(pageId, forceDataRefresh = false) {
             activeListeners = renderProfile(pageContainer, currentUser);
             break;
         case 'leaderboard':
+            if (currentUser.role === 'coach'){
             const rankedUsers = [...allUsers].sort((a, b) => b.points - a.points);
             activeListeners = renderLeaderboard(pageContainer, rankedUsers);
             break;
+            }
         case 'exercises':
             activeListeners = renderExercises(pageContainer);
             break;
@@ -94,15 +94,22 @@ async function initializeAppUI() {
 
     document.getElementById('user-name-display').textContent = currentUser.name;
     
+    // *** KORREKTUR HIER ***
+    // Zuerst die Navigation für alle Benutzer erstellen
     let navHTML = `
         <button data-page="dashboard" class="nav-link px-4 py-2 rounded-md font-semibold">Dashboard</button>
         <button data-page="profile" class="nav-link px-4 py-2 rounded-md font-semibold">Meine Erfolge</button>
-        <button data-page="leaderboard" class="nav-link px-4 py-2 rounded-md font-semibold">Rangliste</button>
         <button data-page="exercises" class="nav-link px-4 py-2 rounded-md font-semibold">Übungen</button>
     `;
+
+    // Dann die zusätzlichen Buttons NUR für Coaches hinzufügen
     if (currentUser.role === 'coach') {
-        navHTML += `<button data-page="coach" class="nav-link px-4 py-2 rounded-md font-semibold">Coach Panel</button>`;
+        navHTML += `
+            <button data-page="leaderboard" class="nav-link px-4 py-2 rounded-md font-semibold">Rangliste</button>
+            <button data-page="coach" class="nav-link px-4 py-2 rounded-md font-semibold">Coach Panel</button>
+        `;
     }
+    
     navContainer.innerHTML = navHTML;
     
     navContainer.querySelectorAll('.nav-link').forEach(link => {
@@ -112,20 +119,24 @@ async function initializeAppUI() {
         });
     });
 
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', () => signOut(auth));
+    }
+
     await fetchAllUsers();
     showPage('dashboard');
 }
 
 handleAuthState(async (user) => {
     if (user) {
-        // Hier wurde der Fehler verursacht. Wir müssen 'getDoc' und 'doc' importieren.
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
             currentUser = { uid: user.uid, ...userDoc.data() };
             await initializeAppUI();
         } else {
             console.error("Benutzer nicht in der Datenbank gefunden!");
-            // Optional: handleLogout() hier aufrufen, um den User auszuloggen.
+            await signOut(auth);
         }
     } else {
         currentUser = null;
