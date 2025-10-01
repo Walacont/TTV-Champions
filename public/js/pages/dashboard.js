@@ -3,6 +3,12 @@ import { db } from '../firebase-config.js';
 
 // Funktion zum Öffnen des Verlaufs-Modals
 async function openHistoryModal(currentUser) {
+    // --- SICHERHEITSPRÜFUNG HINZUGEFÜGT ---
+    if (!currentUser || !currentUser.uid) {
+        console.error("Kann Verlauf nicht laden: currentUser.uid ist nicht verfügbar.");
+        return;
+    }
+
     const modal = document.getElementById('history-modal');
     const historyList = document.getElementById('modal-history-list');
     const closeBtn = document.getElementById('history-modal-close-btn');
@@ -16,7 +22,7 @@ async function openHistoryModal(currentUser) {
     // Daten einmalig abrufen (ohne Limit)
     const fullHistoryQuery = query(
         collection(db, "point_logs"),
-        where("userId", "==", currentUser.uid),
+        where("userId", "==", currentUser.uid), // Dieser Aufruf ist jetzt sicher
         orderBy("timestamp", "desc")
     );
 
@@ -91,6 +97,13 @@ function getEndOfDay() {
 }
 
 export function renderDashboard(container, currentUser) {
+    // --- SICHERHEITSPRÜFUNG HINZUGEFÜGT ---
+    if (!currentUser || !currentUser.uid) {
+        console.error("Dashboard kann nicht gerendert werden: currentUser.uid ist nicht verfügbar.");
+        container.innerHTML = `<p class="text-red-400 text-center p-8">Fehler: Benutzerdaten konnten nicht geladen werden.</p>`;
+        return [];
+    }
+    
     container.innerHTML = `
         <div class="space-y-8">
             <div class="grid md:grid-cols-3 gap-6" id="dashboard-stats"></div>
@@ -108,9 +121,9 @@ export function renderDashboard(container, currentUser) {
 
     const usersListener = onSnapshot(query(collection(db, "users"), orderBy("points", "desc")), (snapshot) => {
         const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const me = users.find(u => u.id === currentUser.uid);
+        const me = users.find(u => u.id === currentUser.uid); // Dieser Aufruf ist jetzt sicher
         let nextTargetHtml = '';
-        const myIndex = users.findIndex(u => u.id === currentUser.uid);
+        const myIndex = users.findIndex(u => u.id === currentUser.uid); // Dieser Aufruf ist jetzt sicher
 
         if (myIndex > 0) {
             const personInFront = users[myIndex - 1];
@@ -224,10 +237,9 @@ export function renderDashboard(container, currentUser) {
     const weeklyChallengesListener = onSnapshot(collection(db, "weekly_challenges"), renderAllChallenges);
     const monthlyChallengesListener = onSnapshot(collection(db, "monthly_challenges"), renderAllChallenges);
     
-    // GEÄNDERT: limit(3) für die Vorschau
     const historyQuery = query(
         collection(db, "point_logs"), 
-        where("userId", "==", currentUser.uid), 
+        where("userId", "==", currentUser.uid), // Dieser Aufruf ist jetzt sicher
         orderBy("timestamp", "desc"),
         limit(3)
     );
@@ -263,12 +275,10 @@ export function renderDashboard(container, currentUser) {
         }).join('');
     });
 
-    setTimeout(() => {
-        const historyCard = document.getElementById('history-card');
-        if (historyCard) {
-            historyCard.addEventListener('click', () => openHistoryModal(currentUser));
-        }
-    }, 0);
+    const historyCard = document.getElementById('history-card');
+    if (historyCard) {
+        historyCard.addEventListener('click', () => openHistoryModal(currentUser));
+    }
 
     renderAllChallenges();
     return [usersListener, challengesListener, weeklyChallengesListener, monthlyChallengesListener, historyListener];

@@ -141,6 +141,13 @@ function renderAllProfileContent(userData, longestStreak, pointLogs, completedCh
 }
 
 export function renderProfile(container, currentUser) {
+    // --- SICHERHEITSPRÜFUNG HINZUGEFÜGT ---
+    if (!currentUser || !currentUser.uid) {
+        console.error("Profil kann nicht gerendert werden: currentUser.uid ist nicht verfügbar.");
+        container.innerHTML = `<p class="text-red-400 text-center p-8">Fehler: Benutzerprofil konnte nicht geladen werden.</p>`;
+        return [];
+    }
+    
     container.innerHTML = `
         <div class="space-y-8">
             <div class="bg-slate-800 p-6 rounded-lg shadow-lg">
@@ -166,6 +173,7 @@ export function renderProfile(container, currentUser) {
     `;
 
     // Holt alle Daten und rendert den Inhalt
+    // Dieser Aufruf ist jetzt sicher, da wir oben bereits geprüft haben.
     const userListener = onSnapshot(doc(db, "users", currentUser.uid), async (userDoc) => {
         if (!userDoc.exists()) {
             container.innerHTML = `<div class="p-4 text-center text-red-400">Benutzerdaten nicht gefunden.</div>`;

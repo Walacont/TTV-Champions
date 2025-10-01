@@ -5,20 +5,20 @@ import { handleAuthState } from './auth.js';
 import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, getDocs, getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Importiere alle Seiten-Renderer
 import { renderDashboard } from './pages/dashboard.js';
 import { renderProfile } from './pages/profile.js';
 import { renderLeaderboard } from './pages/leaderboard.js';
 import { rendercoach } from './pages/coach.js';
 import { renderExercises } from './pages/exercises.js';
 
-// Globaler Zustand der App
 let currentUser = null;
 let allUsers = [];
 let activeListeners = [];
 let currentPageId = 'dashboard';
 const navContainer = document.getElementById('main-nav');
 const pageContainer = document.getElementById('page-container');
+const authContainer = document.getElementById('auth-container'); // <-- NEW
+const appContent = document.getElementById('app-content');       // <-- NEW
 
 function showNotification(message, type = 'success') {
     const notificationBar = document.getElementById('notification-bar');
@@ -92,17 +92,15 @@ async function showPage(pageId, forceDataRefresh = false) {
 async function initializeAppUI() {
     if (!currentUser) return;
 
+    // This line is now safe because appContent is guaranteed to be visible
     document.getElementById('user-name-display').textContent = currentUser.name;
     
-    // *** KORREKTUR HIER ***
-    // Zuerst die Navigation für alle Benutzer erstellen
     let navHTML = `
         <button data-page="dashboard" class="nav-link px-4 py-2 rounded-md font-semibold">Dashboard</button>
         <button data-page="profile" class="nav-link px-4 py-2 rounded-md font-semibold">Meine Erfolge</button>
         <button data-page="exercises" class="nav-link px-4 py-2 rounded-md font-semibold">Übungen</button>
     `;
 
-    // Dann die zusätzlichen Buttons NUR für Coaches hinzufügen
     if (currentUser.role === 'coach') {
         navHTML += `
             <button data-page="leaderboard" class="nav-link px-4 py-2 rounded-md font-semibold">Rangliste</button>
@@ -128,17 +126,18 @@ async function initializeAppUI() {
     showPage('dashboard');
 }
 
-handleAuthState(async (user) => {
-    if (user) {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-            currentUser = { uid: user.uid, ...userDoc.data() };
-            await initializeAppUI();
-        } else {
-            console.error("Benutzer nicht in der Datenbank gefunden!");
-            await signOut(auth);
-        }
+handleAuthState(async (userFromAuth) => {
+    // --- THIS IS THE NEW LOGIC FOR PAGE VISIBILITY ---
+    if (userFromAuth) {
+        authContainer.style.display = 'none';
+        appContent.style.display = 'block';
+        
+        currentUser = userFromAuth;
+        await initializeAppUI();
     } else {
+        authContainer.style.display = 'flex';
+        appContent.style.display = 'none';
+
         currentUser = null;
         if (Array.isArray(activeListeners)) {
             activeListeners.forEach(unsubscribe => unsubscribe());

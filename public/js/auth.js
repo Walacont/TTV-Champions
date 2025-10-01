@@ -4,46 +4,88 @@ import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
     signOut,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    sendSignInLinkToEmail,
+    isSignInWithEmailLink,
+    signInWithEmailLink
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-    doc,
-    getDoc
+    doc, getDoc, collection, query, where, getDocs, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase-config.js';
 
-// DOM-Elemente
-const authContainer = document.getElementById('auth-container');
-const appContent = document.getElementById('app-content');
 const authError = document.getElementById('auth-error');
 const authSubtitle = document.getElementById('auth-subtitle');
-const loginForm = document.getElementById('login-form');
+const passwordLoginForm = document.getElementById('password-login-form');
+const emailLinkForm = document.getElementById('email-link-form');
 const resetForm = document.getElementById('reset-form');
 
-// Diese Funktion wird von main.js importiert und aufgerufen
+const actionCodeSettings = {
+    url: window.location.href,
+    handleCodeInApp: true
+};
+
+async function handleIncomingSignInLink() {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+        let email = window.localStorage.getItem('emailForSignIn');
+        if (!email) {
+            email = window.prompt('Bitte gib deine E-Mail-Adresse zur Bestätigung erneut ein:');
+        }
+        try {
+            await signInWithEmailLink(auth, email, window.location.href);
+            window.localStorage.removeItem('emailForSignIn');
+        } catch (error) {
+            console.error("Fehler beim Anmelden mit E-Mail-Link:", error);
+            authError.textContent = 'Der Anmelde-Link ist ungültig oder abgelaufen.';
+        }
+    }
+}
+handleIncomingSignInLink();
+
 export function handleAuthState(callback) {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            const userDocSnap = await getDoc(doc(db, "users", user.uid));
-            if (userDocSnap.exists()) {
-                authContainer.style.display = 'none';
-                appContent.style.display = 'block';
-                callback({ uid: user.uid, ...userDocSnap.data() });
+            let userDoc;
+            const docRefById = doc(db, "users", user.uid);
+            const docSnapById = await getDoc(docRefById);
+            if (docSnapById.exists()) {
+                userDoc = docSnapById;
+            } else {
+                const q = query(collection(db, "users"), where("uid", "==", user.uid), limit(1));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) userDoc = querySnapshot.docs[0];
+            }
+
+            if (userDoc) {
+                const finalUserData = { id: userDoc.id, ...userDoc.data(), uid: user.uid };
+                callback(finalUserData);
             } else {
                 console.error("Benutzer in Auth gefunden, aber nicht in der Datenbank. Melde ab.");
                 await signOut(auth);
                 callback(null);
             }
         } else {
-            authContainer.style.display = 'flex';
-            appContent.style.display = 'none';
             callback(null);
         }
     });
 }
 
-// Event-Listener für das Login-Formular
-loginForm.addEventListener('submit', async (e) => {
+emailLinkForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email-link-input').value;
+    try {
+        await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+        window.localStorage.setItem('emailForSignIn', email);
+        authError.classList.remove('text-red-400');
+        authError.classList.add('text-green-400');
+        authError.textContent = `Anmelde-Link an ${email} gesendet. Prüfe dein Postfach!`;
+    } catch (error) {
+        console.error("Fehler beim Senden des Links:", error);
+        authError.textContent = 'Fehler beim Senden des Links.';
+    }
+});
+
+passwordLoginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
@@ -56,7 +98,6 @@ loginForm.addEventListener('submit', async (e) => {
     }
 });
 
-// Event-Listener für das Passwort-Reset-Formular
 resetForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('reset-email').value;
@@ -73,23 +114,40 @@ resetForm.addEventListener('submit', async (e) => {
     }
 });
 
-// Funktion zum Umschalten zwischen Login- und Reset-Formular
 function showForm(formToShow) {
-    loginForm.style.display = 'none';
+    passwordLoginForm.style.display = 'none';
+    emailLinkForm.style.display = 'none';
     resetForm.style.display = 'none';
+    document.getElementById('show-password-login').style.display = 'inline';
+    document.getElementById('show-email-link-login').style.display = 'inline';
+    document.getElementById('password-reset-link-container').style.display = 'none';
+    document.getElementById('or-divider').style.display = 'none';
+    
     authError.textContent = '';
     authError.classList.remove('text-green-400');
     authError.classList.add('text-red-400');
 
-    if (formToShow === 'login') {
-        loginForm.style.display = 'block';
-        authSubtitle.textContent = 'Bitte melde dich an.';
+    if (formToShow === 'password') {
+        passwordLoginForm.style.display = 'block';
+        document.getElementById('show-password-login').style.display = 'none';
+        document.getElementById('password-reset-link-container').style.display = 'block';
+        authSubtitle.textContent = 'Melde dich mit deinem Passwort an.';
+    } else if (formToShow === 'emailLink') {
+        emailLinkForm.style.display = 'block';
+        document.getElementById('show-email-link-login').style.display = 'none';
+        document.getElementById('or-divider').style.display = 'inline';
+        authSubtitle.textContent = 'Erhalte einen Anmelde-Link per E-Mail.';
     } else if (formToShow === 'reset') {
         resetForm.style.display = 'block';
+        document.getElementById('show-password-login').style.display = 'none';
+        document.getElementById('show-email-link-login').style.display = 'none';
         authSubtitle.textContent = 'Setze dein Passwort zurück.';
     }
 }
 
-// Event-Listener für die Links zum Umschalten der Formulare
+document.getElementById('show-password-login').addEventListener('click', (e) => { e.preventDefault(); showForm('password'); });
+document.getElementById('show-email-link-login').addEventListener('click', (e) => { e.preventDefault(); showForm('emailLink'); });
 document.getElementById('show-reset').addEventListener('click', (e) => { e.preventDefault(); showForm('reset'); });
-document.getElementById('show-login-from-reset').addEventListener('click', (e) => { e.preventDefault(); showForm('login'); });
+document.getElementById('show-login-from-reset').addEventListener('click', (e) => { e.preventDefault(); showForm('password'); });
+
+showForm('emailLink');

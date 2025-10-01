@@ -1,7 +1,7 @@
 // js/register.js
 
 import { createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase-config.js';
 
 const subtitle = document.getElementById('register-subtitle');
@@ -9,6 +9,10 @@ const errorDisplay = document.getElementById('register-error');
 const registerForm = document.getElementById('register-form');
 let registrationToken = null;
 
+/**
+ * Diese Funktion wird beim Laden der Seite ausgeführt.
+ * Sie liest das Token aus der URL und lädt die Daten des Offline-Spielers.
+ */
 async function handlePageLoad() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
@@ -32,11 +36,16 @@ async function handlePageLoad() {
             errorDisplay.textContent = 'Dieser Link ist ungültig oder wurde bereits verwendet.';
         }
     } catch (error) {
+        console.error("Fehler beim Laden der Spielerdaten:", error);
         subtitle.textContent = 'Fehler.';
         errorDisplay.textContent = 'Die Spielerdaten konnten nicht geladen werden.';
     }
 }
 
+/**
+ * Dieser Event-Listener wird ausgeführt, wenn das Registrierungsformular abgeschickt wird.
+ * Er erstellt den Auth-Benutzer und aktualisiert das bestehende Firestore-Dokument.
+ */
 registerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('register-email').value;
@@ -47,43 +56,50 @@ registerForm.addEventListener('submit', async (e) => {
     submitButton.textContent = 'Wird aktiviert...';
 
     try {
+        // Schritt 1: Erstelle den Benutzer in Firebase Authentication
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // Hole die ursprünglichen Daten des Offline-Spielers
         const offlineUserDocRef = doc(db, "users", registrationToken);
         const offlineUserDocSnap = await getDoc(offlineUserDocRef);
         const offlineUserData = offlineUserDocSnap.data();
-
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        
+        // Aktualisiere den Anzeigenamen im Auth-Profil
         await updateProfile(user, { displayName: offlineUserData.name });
 
-        const batch = writeBatch(db);
-        const newUserDocRef = doc(db, "users", user.uid);
-        
-        batch.set(newUserDocRef, { 
-            ...offlineUserData, 
-            email, 
-            uid: user.uid, 
-            isOffline: false
+        // Schritt 2: Aktualisiere das bestehende Firestore-Dokument
+        // Dies wird von deiner `update`-Sicherheitsregel erlaubt.
+        await updateDoc(offlineUserDocRef, {
+            email: email,
+            uid: user.uid,       // Speichere die neue, echte Auth-UID
+            isOffline: false   // Schalte den Account auf "online"
         });
-        batch.delete(offlineUserDocRef);
-        await batch.commit();
-
+        
+        // Erfolgsmeldung und Weiterleitung
         subtitle.textContent = 'Aktivierung erfolgreich!';
         registerForm.style.display = 'none';
         errorDisplay.textContent = 'Du wirst zur App weitergeleitet...';
         errorDisplay.classList.remove('text-red-400');
         errorDisplay.classList.add('text-green-400');
 
-        // *** HIER IST DIE LÖSUNG: Nach 2 Sekunden zur Hauptseite weiterleiten ***
         setTimeout(() => {
             window.location.href = '/'; // Leitet zur Startseite (index.html)
         }, 2000);
 
     } catch (error) {
         console.error("Token Register Error:", error);
-        errorDisplay.textContent = 'Fehler bei der Konto-Aktivierung.';
+        let errorMessage = 'Fehler bei der Konto-Aktivierung.';
+        if (error.code === 'auth/weak-password') {
+            errorMessage = 'Das Passwort muss mindestens 6 Zeichen lang sein.';
+        } else if (error.code === 'auth/email-already-in-use') {
+            errorMessage = 'Diese E-Mail-Adresse wird bereits verwendet.';
+        }
+        errorDisplay.textContent = errorMessage;
         submitButton.disabled = false;
         submitButton.textContent = 'Konto aktivieren';
     }
 });
 
+// Starte den Prozess, wenn die Seite geladen wird
 handlePageLoad();
